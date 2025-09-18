@@ -21,7 +21,11 @@ def load_profiles(path: str | Path) -> Tuple[UserAgentProvider, LocaleProvider]:
 
     data = _read_file(path)
     ua_records = [UserAgentRecord(**item) for item in data.get("user_agents", [])]
+    if not ua_records:
+        raise RuntimeError("profile file contains no user-agent records")
     locale_entries = [LocaleProfile(**item) for item in data.get("locales", [])]
+    if not locale_entries:
+        locale_entries = [LocaleProfile(language="en-US,en;q=0.9", country="US")]
     return UserAgentProvider(ua_records), LocaleProvider(locale_entries)
 
 

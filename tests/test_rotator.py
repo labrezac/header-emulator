@@ -1,3 +1,5 @@
+import pytest
+
 from header_emulator.builder import HeaderBuilder
 from header_emulator.config import CooldownConfig, HeaderEmulatorConfig
 from header_emulator.providers.locales import LocaleProvider
@@ -77,3 +79,21 @@ def test_failure_triggers_cooldown():
     second = rotator.next_request().profile_id
 
     assert second != first
+
+
+def test_rotator_requires_profiles():
+    class EmptyProvider(UserAgentProvider):
+        def __init__(self):
+            self._records = []
+            self._index = {}
+
+        def all(self):
+            return []
+
+    ua_provider = EmptyProvider()
+    locale_provider = LocaleProvider([LocaleProfile(language="en-US,en;q=0.9", country="US")])
+    builder = HeaderBuilder(user_agents=ua_provider, locales=locale_provider)
+    config = HeaderEmulatorConfig()
+
+    with pytest.raises(ValueError):
+        HeaderRotator(builder=builder, config=config)

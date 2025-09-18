@@ -1,10 +1,19 @@
 # Python cache
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
 
-# Virtual env
-.venv/
-env/
+# Build artifacts
+build/
+dist/
+*.egg-info/
 
-# Local config
-.env
+# Test cache
+.pytest_cache/
+.mypy_cache/
+
+# IDE
+.vscode/
+
+# Local data
+data/profiles.json

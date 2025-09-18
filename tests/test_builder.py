@@ -4,6 +4,7 @@ from header_emulator.providers.locales import LocaleProvider
 from header_emulator.providers.proxies import ProxyProvider
 from header_emulator.providers.user_agents import UserAgentProvider, UserAgentRecord
 from header_emulator.types import LocaleProfile, ProxyConfig, ProxyScheme
+import pytest
 
 
 def _single_record(record_id: str, mobile: bool = False) -> UserAgentRecord:
@@ -76,3 +77,14 @@ def test_builder_composes_emulated_request_with_proxy_and_overrides():
     assert request.cookies == {"session": "abc"}
     assert request.proxy is not None
     assert request.proxy.netloc == "127.0.0.1:8080"
+
+
+def test_builder_invalid_profile_id():
+    builder = HeaderBuilder(
+        user_agents=UserAgentProvider([_single_record("desktop")]),
+        locales=LocaleProvider([LocaleProfile(language="en-US,en;q=0.9", country="US")]),
+        referers=[],
+    )
+
+    with pytest.raises(KeyError):
+        builder.create_profile(profile_id="missing")

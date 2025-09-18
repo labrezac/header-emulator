@@ -89,3 +89,27 @@ def test_proxy_preload_healthcheck_filters():
 
     proxy = manager.select()
     assert proxy.host.endswith(".1")
+
+
+def test_proxy_manager_failure_threshold_triggers_cooldown():
+    provider = ProxyProvider(
+        [ProxyConfig(scheme=ProxyScheme.HTTP, host="10.0.0.1", port=8080, weight=1.0)]
+    )
+    config = ProxyPoolConfig(
+        rotation_strategy=RotationStrategy.RANDOM,
+        failure_policy=FailurePolicy.COOLDOWN,
+        failure_threshold=2,
+        cooldown_seconds=5,
+        preload=False,
+    )
+    time_stub = TimeStub()
+    manager = ProxyManager(provider, config, time_fn=time_stub)
+
+    proxy = manager.select()
+    manager.mark_failure(proxy)
+    # First failure below threshold -> still selectable
+    assert manager.select().url == proxy.url
+
+    manager.mark_failure(proxy)
+    with pytest.raises(RuntimeError):
+        manager.select()

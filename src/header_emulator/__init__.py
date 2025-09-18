@@ -4,6 +4,7 @@ from .builder import FETCH_INTENT_API, FETCH_INTENT_DOCUMENT, HeaderBuilder
 from .config import HeaderEmulatorConfig
 from .providers import LocaleProvider, ProxyProvider, UserAgentProvider
 from .persistence import MemoryPersistenceAdapter, PersistenceAdapter
+from .external_sources import proxies_from_proxyscrape, user_agents_from_intoli
 from .emulator import HeaderEmulator
 from .middleware import Middleware, MiddlewareManager
 from .proxy_tools import healthcheck_proxies
@@ -39,4 +40,6 @@ __all__ = [
     "healthcheck_proxies",
     "load_profiles",
     "requests_request",
+    "proxies_from_proxyscrape",
+    "user_agents_from_intoli",
 ]

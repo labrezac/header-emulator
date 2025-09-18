@@ -90,3 +90,24 @@ def test_requests_request_applies_proxy_when_requested():
     proxies = session.captured["proxies"]
     assert proxies["http"].startswith("http://")
     assert proxies["https"].startswith("http://")
+
+
+def test_requests_request_respects_existing_session(monkeypatch):
+    emulator = _emulator()
+    session = DummySession()
+
+    class DummyResponse:
+        def __init__(self):
+            self.text = "ok"
+
+    monkeypatch.setattr(session, "request", lambda *args, **kwargs: DummyResponse())
+
+    response = requests_request(
+        emulator,
+        "GET",
+        "https://example.com",
+        session=session,
+        headers={"X-Test": "1"},
+    )
+
+    assert isinstance(response, DummyResponse)

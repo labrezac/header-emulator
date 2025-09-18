@@ -1,4 +1,5 @@
 import httpx
+import pytest
 
 from header_emulator.builder import HeaderBuilder
 from header_emulator.config import HeaderEmulatorConfig, RetryConfig, ThrottleConfig
@@ -101,6 +102,32 @@ def test_session_retries_on_retryable_status():
     assert response.status_code == 200
     assert len(calls) == 2
     assert calls[0] != calls[1]
+
+
+def test_session_handles_http_error():
+    class FailureTransport(httpx.BaseTransport):
+        def handle_request(self, *args, **kwargs):  # type: ignore[override]
+            raise httpx.ConnectError("boom", request=args[0])
+
+    builder = _builder([
+        _record("desktop", "Mozilla/5.0 test"),
+    ])
+    config = HeaderEmulatorConfig(
+        retry=RetryConfig(max_attempts=1, backoff_factor=0.01, jitter_seconds=0.0),
+        throttle=ThrottleConfig(enabled=False),
+    )
+
+    session = HeaderSession(
+        builder=builder,
+        config=config,
+        client_options={"transport": FailureTransport()},
+        sleep=lambda _: None,
+    )
+
+    with pytest.raises(httpx.ConnectError):
+        session.request("GET", "https://example.com")
+
+    session.close()
 
 
 class CaptureMiddleware(Middleware):

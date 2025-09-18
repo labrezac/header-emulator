@@ -9,6 +9,7 @@ from header_emulator.proxy_tools import (
     load_proxies_from_lines,
     shuffled_proxies,
 )
+from header_emulator.utils import weighted_choice
 
 
 class DummyClient(httpx.Client):
@@ -98,3 +99,9 @@ def test_shuffled_proxies_uses_random_function():
 
     shuffled = shuffled_proxies(proxies, random_fn=reverse)
     assert shuffled[0].host == "127.0.0.2"
+
+
+def test_weighted_choice_handles_zero_weights():
+    proxies = [ProxyConfig(scheme=ProxyScheme.HTTP, host="a", port=1), ProxyConfig(scheme=ProxyScheme.HTTP, host="b", port=2)]
+    chosen = weighted_choice(proxies, [0.0, 0.0], random_fn=lambda: 0.0)
+    assert chosen.host in {"a", "b"}
