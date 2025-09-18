@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import random
 import time
 from contextlib import AbstractContextManager
 from typing import Any, Awaitable, Callable, Iterable, Mapping, MutableMapping, Optional
@@ -15,28 +14,15 @@ from .config import HeaderEmulatorConfig
 from .middleware import Middleware, MiddlewareManager
 from .persistence import PersistenceAdapter
 from .rotator import HeaderRotator
-from .telemetry import TelemetryPublisher, TelemetrySink
 from .throttle import ThrottleController
-from .types import (
-    EmulatedRequest,
-    LocaleProfile,
-    ProxyConfig,
-    RotationStrategy,
-    StickySessionKey,
-    TelemetryEvent,
-)
+from .types import EmulatedRequest, LocaleProfile, ProxyConfig, RotationStrategy, StickySessionKey
 
 RETRYABLE_STATUS_CODES = {403, 407, 408, 425, 429, 500, 502, 503, 504}
-
-
-def _elapsed_ms(start: float) -> float:
-    return (time.perf_counter() - start) * 1000.0
 
 
 class _ProxyTrackingMixin:
     builder: HeaderBuilder
     config: HeaderEmulatorConfig
-    _telemetry: TelemetryPublisher
 
     def _mark_proxy_success(self, proxy: Optional[ProxyConfig]) -> None:
         manager = self.builder.proxy_manager
@@ -47,42 +33,6 @@ class _ProxyTrackingMixin:
         manager = self.builder.proxy_manager
         if manager is not None and proxy is not None:
             manager.mark_failure(proxy)
-
-    def _emit_telemetry(
-        self,
-        event_name: str,
-        emulated: EmulatedRequest,
-        *,
-        url: str,
-        method: str,
-        attempt: int,
-        elapsed_ms: Optional[float] = None,
-        response: Optional[httpx.Response] = None,
-        error: Optional[Exception] = None,
-    ) -> None:
-        payload: dict[str, object] = {
-            "method": method,
-            "attempt": attempt,
-        }
-        if response is not None:
-            payload["status_code"] = response.status_code
-        if error is not None:
-            payload["error"] = repr(error)
-        if elapsed_ms is not None:
-            payload["elapsed_ms"] = elapsed_ms
-        if self.config.telemetry.include_headers:
-            payload["headers"] = dict(emulated.headers)
-        event = TelemetryEvent(
-            event=event_name,
-            payload=payload,
-            request_url=url,
-            proxy=emulated.proxy.url if emulated.proxy else None,
-            profile_id=emulated.profile_id,
-            status_code=response.status_code if response is not None else None,
-            elapsed_ms=int(elapsed_ms) if elapsed_ms is not None else None,
-        )
-        self._telemetry.emit(event)
-
 
 class HeaderSession(_ProxyTrackingMixin, AbstractContextManager):
     """Synchronous HTTP client that rotates headers and proxies per request."""
@@ -96,8 +46,6 @@ class HeaderSession(_ProxyTrackingMixin, AbstractContextManager):
         config: Optional[HeaderEmulatorConfig] = None,
         client_options: Optional[dict[str, Any]] = None,
         sleep: Optional[Callable[[float], None]] = None,
-        telemetry_sinks: Optional[Iterable[TelemetrySink]] = None,
-        telemetry_random: Optional[Callable[[], float]] = None,
         backoff_random: Optional[Callable[[], float]] = None,
         middlewares: Optional[Iterable[Middleware]] = None,
     ) -> None:
@@ -112,21 +60,11 @@ class HeaderSession(_ProxyTrackingMixin, AbstractContextManager):
         self._proxy_clients: dict[str, httpx.Client] = {}
         self._sleep = sleep or time.sleep
         self._middleware = MiddlewareManager(list(middlewares or []))
-        self._telemetry = TelemetryPublisher(
-            self.config.telemetry,
-            random_fn=telemetry_random or random.random,
-        )
-        for sink in telemetry_sinks or []:
-            self._telemetry.subscribe(sink)
         self._throttle = ThrottleController(
             self.config.retry,
             self.config.throttle,
             random_fn=backoff_random,
         )
-        self.rotator.attach_telemetry(self._telemetry)
-        proxy_manager = self.builder.proxy_manager
-        if proxy_manager is not None:
-            proxy_manager.attach_telemetry(self._telemetry)
 
     # ------------------------------------------------------------------
     # Context management
@@ -163,7 +101,6 @@ class HeaderSession(_ProxyTrackingMixin, AbstractContextManager):
 
         attempts = 0
         last_exc: Optional[Exception] = None
-        last_emulated: Optional[EmulatedRequest] = None
         while attempts < self.config.retry.max_attempts:
             attempts += 1
             emulated = self.rotator.next_request(
@@ -177,25 +114,14 @@ class HeaderSession(_ProxyTrackingMixin, AbstractContextManager):
                 headers_override=headers,
                 with_proxy=with_proxy,
             )
-            last_emulated = emulated
             if emulated.profile is not None:
                 self._middleware.before_send(emulated, emulated.profile)
-            start = time.perf_counter()
             try:
                 response = self._send_request(method, url, emulated, **request_kwargs)
             except httpx.HTTPError as exc:
                 last_exc = exc
                 self._mark_proxy_failure(emulated.proxy)
                 self.rotator.record_failure(emulated.profile_id or "", sticky_key=sticky_key)
-                self._emit_telemetry(
-                    "request.error",
-                    emulated,
-                    url=url,
-                    method=method,
-                    attempt=attempts,
-                    error=exc,
-                    elapsed_ms=_elapsed_ms(start),
-                )
                 delay = self._throttle.backoff_delay(attempts)
                 if delay > 0:
                     self._sleep(delay)
@@ -206,15 +132,6 @@ class HeaderSession(_ProxyTrackingMixin, AbstractContextManager):
                     self._middleware.after_response(emulated, response)
                 self._mark_proxy_failure(emulated.proxy)
                 self.rotator.record_failure(emulated.profile_id or "", sticky_key=sticky_key)
-                self._emit_telemetry(
-                    "request.retry",
-                    emulated,
-                    url=url,
-                    method=method,
-                    attempt=attempts,
-                    response=response,
-                    elapsed_ms=_elapsed_ms(start),
-                )
                 delay = self._throttle.backoff_delay(attempts, response)
                 if delay > 0:
                     self._sleep(delay)
@@ -223,39 +140,13 @@ class HeaderSession(_ProxyTrackingMixin, AbstractContextManager):
             self.rotator.record_success(emulated.profile_id or "")
             self._mark_proxy_success(emulated.proxy)
             self._apply_throttle(response)
-            self._emit_telemetry(
-                "request.success",
-                emulated,
-                url=url,
-                method=method,
-                attempt=attempts,
-                response=response,
-                elapsed_ms=_elapsed_ms(start),
-            )
             if emulated.profile is not None:
                 self._middleware.after_response(emulated, response)
             return response
 
         # Exhausted attempts, raise last exception or a HTTP status error
         if last_exc is not None:
-            if last_emulated is not None:
-                self._emit_telemetry(
-                    "request.final_failure",
-                    last_emulated,
-                    url=url,
-                    method=method,
-                    attempt=attempts,
-                    error=last_exc,
-                )
             raise last_exc
-        if last_emulated is not None:
-            self._emit_telemetry(
-                "request.final_failure",
-                last_emulated,
-                url=url,
-                method=method,
-                attempt=attempts,
-            )
         raise RuntimeError("Exceeded maximum retry attempts without success")
 
     # ------------------------------------------------------------------
@@ -312,8 +203,6 @@ class AsyncHeaderSession(_ProxyTrackingMixin):
         config: Optional[HeaderEmulatorConfig] = None,
         client_options: Optional[dict[str, Any]] = None,
         sleep: Optional[Callable[[float], Awaitable[None]]] = None,
-        telemetry_sinks: Optional[Iterable[TelemetrySink]] = None,
-        telemetry_random: Optional[Callable[[], float]] = None,
         backoff_random: Optional[Callable[[], float]] = None,
         middlewares: Optional[Iterable[Middleware]] = None,
     ) -> None:
@@ -328,21 +217,11 @@ class AsyncHeaderSession(_ProxyTrackingMixin):
         self._proxy_clients: dict[str, httpx.AsyncClient] = {}
         self._sleep = sleep or anyio.sleep
         self._middleware = MiddlewareManager(list(middlewares or []))
-        self._telemetry = TelemetryPublisher(
-            self.config.telemetry,
-            random_fn=telemetry_random or random.random,
-        )
-        for sink in telemetry_sinks or []:
-            self._telemetry.subscribe(sink)
         self._throttle = ThrottleController(
             self.config.retry,
             self.config.throttle,
             random_fn=backoff_random,
         )
-        self.rotator.attach_telemetry(self._telemetry)
-        proxy_manager = self.builder.proxy_manager
-        if proxy_manager is not None:
-            proxy_manager.attach_telemetry(self._telemetry)
 
     async def aclose(self) -> None:
         await self._default_client.aclose()
@@ -374,7 +253,6 @@ class AsyncHeaderSession(_ProxyTrackingMixin):
     ) -> httpx.Response:
         attempts = 0
         last_exc: Optional[Exception] = None
-        last_emulated: Optional[EmulatedRequest] = None
         while attempts < self.config.retry.max_attempts:
             attempts += 1
             emulated = self.rotator.next_request(
@@ -388,25 +266,14 @@ class AsyncHeaderSession(_ProxyTrackingMixin):
                 headers_override=headers,
                 with_proxy=with_proxy,
             )
-            last_emulated = emulated
             if emulated.profile is not None:
                 self._middleware.before_send(emulated, emulated.profile)
-            start = time.perf_counter()
             try:
                 response = await self._send_request(method, url, emulated, **request_kwargs)
             except httpx.HTTPError as exc:
                 last_exc = exc
                 self._mark_proxy_failure(emulated.proxy)
                 self.rotator.record_failure(emulated.profile_id or "", sticky_key=sticky_key)
-                self._emit_telemetry(
-                    "request.error",
-                    emulated,
-                    url=url,
-                    method=method,
-                    attempt=attempts,
-                    error=exc,
-                    elapsed_ms=_elapsed_ms(start),
-                )
                 delay = self._throttle.backoff_delay(attempts)
                 if delay > 0:
                     await self._sleep(delay)
@@ -417,15 +284,6 @@ class AsyncHeaderSession(_ProxyTrackingMixin):
                     self._middleware.after_response(emulated, response)
                 self._mark_proxy_failure(emulated.proxy)
                 self.rotator.record_failure(emulated.profile_id or "", sticky_key=sticky_key)
-                self._emit_telemetry(
-                    "request.retry",
-                    emulated,
-                    url=url,
-                    method=method,
-                    attempt=attempts,
-                    response=response,
-                    elapsed_ms=_elapsed_ms(start),
-                )
                 delay = self._throttle.backoff_delay(attempts, response)
                 if delay > 0:
                     await self._sleep(delay)
@@ -434,38 +292,12 @@ class AsyncHeaderSession(_ProxyTrackingMixin):
             self.rotator.record_success(emulated.profile_id or "")
             self._mark_proxy_success(emulated.proxy)
             await self._apply_throttle(response)
-            self._emit_telemetry(
-                "request.success",
-                emulated,
-                url=url,
-                method=method,
-                attempt=attempts,
-                response=response,
-                elapsed_ms=_elapsed_ms(start),
-            )
             if emulated.profile is not None:
                 self._middleware.after_response(emulated, response)
             return response
 
         if last_exc is not None:
-            if last_emulated is not None:
-                self._emit_telemetry(
-                    "request.final_failure",
-                    last_emulated,
-                    url=url,
-                    method=method,
-                    attempt=attempts,
-                    error=last_exc,
-                )
             raise last_exc
-        if last_emulated is not None:
-            self._emit_telemetry(
-                "request.final_failure",
-                last_emulated,
-                url=url,
-                method=method,
-                attempt=attempts,
-            )
         raise RuntimeError("Exceeded maximum retry attempts without success")
 
     async def _send_request(

@@ -6,7 +6,7 @@ from enum import Enum
 from ipaddress import IPv4Address, IPv6Address
 from typing import Callable, Iterable, Mapping, MutableMapping, Optional, Protocol, Sequence
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 HeaderName = str
 HeaderValue = str
@@ -193,18 +193,6 @@ class ProviderCallback(Protocol):
 
     def __call__(self) -> Iterable[Mapping[str, object]]:  # pragma: no cover - protocol definition
         ...
-
-
-class TelemetryEvent(BaseModel):
-    """Telemetry event emitted for observability purposes."""
-
-    event: str
-    payload: dict[str, object] = Field(default_factory=dict)
-    request_url: Optional[HttpUrl] = None
-    proxy: Optional[str] = None
-    profile_id: Optional[str] = None
-    status_code: Optional[int] = None
-    elapsed_ms: Optional[int] = None
 
 
 class AddressFamily(Enum):

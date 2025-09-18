@@ -79,22 +79,6 @@ class ThrottleConfig(BaseModel):
         return value
 
 
-class TelemetryConfig(BaseModel):
-    """Telemetry and metrics publishing configuration."""
-
-    enabled: bool = True
-    sample_rate: float = Field(
-        default=0.1,
-        ge=0.0,
-        le=1.0,
-        description="Fraction of requests that should emit telemetry events.",
-    )
-    include_headers: bool = Field(
-        default=False,
-        description="Include emitted header maps in telemetry payloads (use with caution).",
-    )
-
-
 class ProxyPoolConfig(BaseModel):
     """Configuration for managing the proxy pool."""
 
@@ -126,7 +110,6 @@ class PersistenceBackend(str, Enum):
 
     MEMORY = "memory"
     SQLITE = "sqlite"
-    REDIS = "redis"
 
 
 class PersistenceConfig(BaseModel):
@@ -145,7 +128,6 @@ class HeaderEmulatorConfig(BaseModel):
     cooldown: CooldownConfig = Field(default_factory=CooldownConfig)
     sticky: StickySessionConfig = Field(default_factory=StickySessionConfig)
     throttle: ThrottleConfig = Field(default_factory=ThrottleConfig)
-    telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     proxies: ProxyPoolConfig = Field(default_factory=ProxyPoolConfig)
     persistence: PersistenceConfig = Field(default_factory=PersistenceConfig)
     default_profile: Optional[str] = Field(
@@ -167,6 +149,5 @@ __all__ = [
     "ProxyPoolConfig",
     "RetryConfig",
     "StickySessionConfig",
-    "TelemetryConfig",
     "ThrottleConfig",
 ]

@@ -3,15 +3,9 @@
 from .builder import FETCH_INTENT_API, FETCH_INTENT_DOCUMENT, HeaderBuilder
 from .config import HeaderEmulatorConfig
 from .providers import LocaleProvider, ProxyProvider, UserAgentProvider
-from .persistence import (
-    MemoryPersistenceAdapter,
-    PersistenceAdapter,
-    RedisPersistenceAdapter,
-    SQLitePersistenceAdapter,
-)
+from .persistence import MemoryPersistenceAdapter, PersistenceAdapter, SQLitePersistenceAdapter
 from .emulator import HeaderEmulator
 from .middleware import Middleware, MiddlewareManager
-from .telemetry import InMemoryTelemetrySink, LoggingTelemetrySink, TelemetryPublisher, TelemetrySink
 from .rotator import HeaderRotator
 from .session import AsyncHeaderSession, HeaderSession
 from .types import (
@@ -36,12 +30,7 @@ __all__ = [
     "UserAgentProvider",
     "PersistenceAdapter",
     "MemoryPersistenceAdapter",
-    "RedisPersistenceAdapter",
     "SQLitePersistenceAdapter",
-    "TelemetryPublisher",
-    "TelemetrySink",
-    "LoggingTelemetrySink",
-    "InMemoryTelemetrySink",
     "Middleware",
     "MiddlewareManager",
     "HeaderEmulator",

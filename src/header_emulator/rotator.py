@@ -10,7 +10,6 @@ from .builder import FETCH_INTENT_DOCUMENT, HeaderBuilder
 from .config import HeaderEmulatorConfig, PersistenceBackend
 from .persistence import MemoryPersistenceAdapter, PersistenceAdapter, SQLitePersistenceAdapter
 from .utils import weighted_choice
-from .telemetry import TelemetryPublisher
 from .types import (
     EmulatedRequest,
     FailurePolicy,
@@ -34,7 +33,6 @@ class HeaderRotator:
         self.builder = builder or HeaderBuilder()
         self.config = config or HeaderEmulatorConfig()
         self.persistence = persistence or self._create_persistence_adapter()
-        self._telemetry: Optional[TelemetryPublisher] = None
         self._sticky_session_store = self.persistence.sticky_sessions()
         self._sticky_proxy_store = self.persistence.sticky_proxies()
         self._cooldown_store = self.persistence.cooldowns()
@@ -139,14 +137,8 @@ class HeaderRotator:
         if policy is FailurePolicy.COOLDOWN:
             expires = time.time() + self.config.cooldown.cooldown_seconds
             self._cooldown_store.set(profile_id, expires)
-            self._emit_telemetry(
-                "profile.cooldown",
-                profile_id=profile_id,
-                payload={"expires_at": expires},
-            )
         elif policy is FailurePolicy.EVICT:
             self._evicted_profiles.add(profile_id)
-            self._emit_telemetry("profile.evict", profile_id=profile_id)
 
     # ------------------------------------------------------------------
     # Selection helpers
@@ -278,21 +270,5 @@ class HeaderRotator:
             dsn = persistence_cfg.dsn or ":memory:"
             return SQLitePersistenceAdapter(dsn)
         raise NotImplementedError(f"Unsupported persistence backend: {persistence_cfg.backend}")
-
-    def attach_telemetry(self, telemetry: Optional[TelemetryPublisher]) -> None:
-        self._telemetry = telemetry
-
-    def _emit_telemetry(self, event: str, *, profile_id: Optional[str] = None, payload: Optional[dict[str, object]] = None) -> None:
-        if self._telemetry is None or not self.config.telemetry.enabled:
-            return
-        from .types import TelemetryEvent  # local import to avoid cycle
-
-        event_obj = TelemetryEvent(
-            event=event,
-            payload=payload or {},
-            profile_id=profile_id,
-        )
-        self._telemetry.emit(event_obj)
-
 
 __all__ = ["HeaderRotator"]

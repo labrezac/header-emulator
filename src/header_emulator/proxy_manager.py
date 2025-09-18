@@ -13,7 +13,6 @@ from .config import ProxyPoolConfig
 from .providers import ProxyProvider
 from .utils import weighted_choice
 from .types import FailurePolicy, ProxyConfig, RotationStrategy
-from .telemetry import TelemetryPublisher
 
 
 @dataclass
@@ -33,7 +32,6 @@ class ProxyManager:
         *,
         client_factory: Optional[Callable[[ProxyConfig], httpx.Client]] = None,
         time_fn: Callable[[], float] = time.monotonic,
-        telemetry: Optional[TelemetryPublisher] = None,
     ) -> None:
         self.provider = provider
         self.config = config
@@ -42,7 +40,6 @@ class ProxyManager:
         self._states: Dict[str, _ProxyState] = {}
         self._order: List[str] = []
         self._cursor = 0
-        self._telemetry = telemetry
         self.reload()
         if self.config.preload:
             self._preload_healthchecks()
@@ -78,14 +75,12 @@ class ProxyManager:
             return
         state.failures = 0
         state.cooldown_until = 0.0
-        self._emit("proxy.success", proxy, payload={"failures": state.failures})
 
     def mark_failure(self, proxy: ProxyConfig) -> None:
         state = self._states.get(proxy.url)
         if state is None:
             return
         state.failures += 1
-        self._emit("proxy.failure", proxy, payload={"failures": state.failures})
         if state.failures < self.config.failure_threshold:
             return
         state.failures = 0
@@ -94,11 +89,9 @@ class ProxyManager:
             return
         if policy is FailurePolicy.COOLDOWN:
             state.cooldown_until = self._time_fn() + self.config.cooldown_seconds
-            self._emit("proxy.cooldown", proxy, payload={"cooldown_until": state.cooldown_until})
             return
         if policy is FailurePolicy.EVICT:
             self._evict(proxy.url)
-            self._emit("proxy.evict", proxy)
 
     def healthcheck(self, proxy: ProxyConfig) -> bool:
         if not self.config.healthcheck_url:
@@ -109,15 +102,8 @@ class ProxyManager:
                 self.config.healthcheck_url,
                 timeout=self.config.healthcheck_timeout_seconds,
             )
-            ok = response.status_code < 400
-            self._emit(
-                "proxy.healthcheck",
-                proxy,
-                payload={"status_code": response.status_code, "ok": ok},
-            )
-            return ok
+            return response.status_code < 400
         except httpx.HTTPError:
-            self._emit("proxy.healthcheck", proxy, payload={"ok": False, "error": "http_error"})
             return False
         finally:
             client.close()
@@ -149,28 +135,11 @@ class ProxyManager:
         for url, state in list(self._states.items()):
             if not self.healthcheck(state.proxy):
                 self._evict(url)
-                self._emit("proxy.preload_evict", state.proxy)
 
     def _default_client_factory(self, proxy: ProxyConfig) -> httpx.Client:
         return httpx.Client(
             proxies=proxy.url,
             timeout=self.config.healthcheck_timeout_seconds,
         )
-
-    def attach_telemetry(self, telemetry: Optional[TelemetryPublisher]) -> None:
-        self._telemetry = telemetry
-
-    def _emit(self, event: str, proxy: ProxyConfig, payload: Optional[dict[str, object]] = None) -> None:
-        if self._telemetry is None or not self.config.enabled:
-            return
-        from .types import TelemetryEvent
-
-        event_obj = TelemetryEvent(
-            event=event,
-            payload=payload or {},
-            proxy=proxy.url,
-        )
-        self._telemetry.emit(event_obj)
-
 
 __all__ = ["ProxyManager"]
