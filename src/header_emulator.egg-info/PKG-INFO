@@ -1,0 +1,34 @@
+Metadata-Version: 2.4
+Name: header-emulator
+Version: 0.1.0
+Summary: Header rotation and session emulator for resilient web scraping.
+Author-email: Your Name <you@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/yourname/header-emulator
+Project-URL: Documentation, https://github.com/yourname/header-emulator
+Project-URL: Bug Tracker, https://github.com/yourname/header-emulator/issues
+Keywords: web-scraping,headers,rotation,proxies
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: httpx>=0.26.0
+Requires-Dist: pydantic>=2.6.0
+Requires-Dist: faker>=19.13.0
+Requires-Dist: python-dateutil>=2.8.2
+Requires-Dist: anyio>=3.7.1
+Provides-Extra: redis
+Requires-Dist: redis>=5.0.1; extra == "redis"
+Provides-Extra: sqlite
+Requires-Dist: aiosqlite>=0.19.0; extra == "sqlite"
+Provides-Extra: cli
+Requires-Dist: typer[all]>=0.9.0; extra == "cli"
+
+# header-emulator
+HTML scraping header emulator with proxy rotation.
