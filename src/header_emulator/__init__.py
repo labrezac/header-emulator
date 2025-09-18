@@ -3,11 +3,14 @@
 from .builder import FETCH_INTENT_API, FETCH_INTENT_DOCUMENT, HeaderBuilder
 from .config import HeaderEmulatorConfig
 from .providers import LocaleProvider, ProxyProvider, UserAgentProvider
-from .persistence import MemoryPersistenceAdapter, PersistenceAdapter, SQLitePersistenceAdapter
+from .persistence import MemoryPersistenceAdapter, PersistenceAdapter
 from .emulator import HeaderEmulator
 from .middleware import Middleware, MiddlewareManager
+from .proxy_tools import healthcheck_proxies
 from .rotator import HeaderRotator
 from .session import AsyncHeaderSession, HeaderSession
+from .profile_loader import load_profiles
+from .requests_support import requests_request
 from .types import (
     HeaderProfile,
     RotationStrategy,
@@ -30,8 +33,10 @@ __all__ = [
     "UserAgentProvider",
     "PersistenceAdapter",
     "MemoryPersistenceAdapter",
-    "SQLitePersistenceAdapter",
     "Middleware",
     "MiddlewareManager",
     "HeaderEmulator",
+    "healthcheck_proxies",
+    "load_profiles",
+    "requests_request",
 ]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
+from pathlib import Path
 from typing import Iterable, Optional
 
 from .builder import HeaderBuilder
@@ -13,6 +14,8 @@ from .providers import LocaleProvider, ProxyProvider, UserAgentProvider
 from .proxy_manager import ProxyManager
 from .rotator import HeaderRotator
 from .session import AsyncHeaderSession, HeaderSession
+from .types import EmulatedRequest, ProxyConfig
+from .profile_loader import load_profiles
 
 
 class HeaderEmulator(AbstractContextManager):
@@ -48,6 +51,26 @@ class HeaderEmulator(AbstractContextManager):
             persistence=self.persistence,
         )
 
+    @classmethod
+    def from_profile_file(
+        cls,
+        path: str | Path,
+        *,
+        config: Optional[HeaderEmulatorConfig] = None,
+        proxies: Optional[ProxyProvider] = None,
+        persistence: Optional[PersistenceAdapter] = None,
+        middlewares: Optional[Iterable[Middleware]] = None,
+    ) -> "HeaderEmulator":
+        ua_provider, locale_provider = load_profiles(path)
+        return cls(
+            config=config,
+            user_agents=ua_provider,
+            locales=locale_provider,
+            proxies=proxies,
+            persistence=persistence,
+            middlewares=middlewares,
+        )
+
     # context manager interface closes default session if used
     def __enter__(self) -> "HeaderEmulator":
         return self
@@ -78,6 +101,22 @@ class HeaderEmulator(AbstractContextManager):
             middlewares=[*self._middlewares, *kwargs.pop("middlewares", [])],
             **kwargs,
         )
+
+    def next_request(self, **kwargs) -> "EmulatedRequest":
+        """Return the next emulated request without sending it."""
+
+        return self.rotator.next_request(**kwargs)
+
+    def next_headers(
+        self,
+        *,
+        with_proxy: bool = False,
+        **kwargs,
+    ) -> tuple[dict[str, str], Optional[ProxyConfig]]:
+        """Convenience helper returning headers and optional proxy config."""
+
+        request = self.next_request(with_proxy=with_proxy, **kwargs)
+        return request.headers, request.proxy
 
     def request(
         self,

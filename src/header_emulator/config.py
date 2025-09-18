@@ -109,7 +109,6 @@ class PersistenceBackend(str, Enum):
     """Supported persistence backends for sharing rotation state."""
 
     MEMORY = "memory"
-    SQLITE = "sqlite"
 
 
 class PersistenceConfig(BaseModel):

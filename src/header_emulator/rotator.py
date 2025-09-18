@@ -8,7 +8,7 @@ from typing import Mapping, MutableMapping, Optional
 
 from .builder import FETCH_INTENT_DOCUMENT, HeaderBuilder
 from .config import HeaderEmulatorConfig, PersistenceBackend
-from .persistence import MemoryPersistenceAdapter, PersistenceAdapter, SQLitePersistenceAdapter
+from .persistence import MemoryPersistenceAdapter, PersistenceAdapter
 from .utils import weighted_choice
 from .types import (
     EmulatedRequest,
@@ -266,9 +266,8 @@ class HeaderRotator:
         persistence_cfg = self.config.persistence
         if persistence_cfg.backend is PersistenceBackend.MEMORY:
             return MemoryPersistenceAdapter()
-        if persistence_cfg.backend is PersistenceBackend.SQLITE:
-            dsn = persistence_cfg.dsn or ":memory:"
-            return SQLitePersistenceAdapter(dsn)
-        raise NotImplementedError(f"Unsupported persistence backend: {persistence_cfg.backend}")
+        if persistence_cfg.backend is not PersistenceBackend.MEMORY:
+            raise NotImplementedError("Only in-memory persistence is supported in this build")
+        return MemoryPersistenceAdapter()
 
 __all__ = ["HeaderRotator"]

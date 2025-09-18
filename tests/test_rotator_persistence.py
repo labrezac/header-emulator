@@ -3,7 +3,6 @@ import pytest
 from header_emulator.builder import HeaderBuilder
 from header_emulator.config import CooldownConfig, HeaderEmulatorConfig
 from header_emulator.persistence.memory import MemoryPersistenceAdapter
-from header_emulator.persistence.sqlite import SQLitePersistenceAdapter
 from header_emulator.providers.locales import LocaleProvider
 from header_emulator.providers.user_agents import UserAgentProvider, UserAgentRecord
 from header_emulator.rotator import HeaderRotator
@@ -38,10 +37,7 @@ def _record(identifier: str, weight: float = 1.0) -> UserAgentRecord:
     )
 
 
-@pytest.mark.parametrize(
-    "adapter_factory",
-    [MemoryPersistenceAdapter, SQLitePersistenceAdapter],
-)
+@pytest.mark.parametrize("adapter_factory", [MemoryPersistenceAdapter])
 def test_sticky_profile_persists(adapter_factory):
     adapter = adapter_factory()
     builder = _builder([_record("alpha")])
@@ -57,10 +53,7 @@ def test_sticky_profile_persists(adapter_factory):
     assert first.profile_id == second.profile_id
 
 
-@pytest.mark.parametrize(
-    "adapter_factory",
-    [MemoryPersistenceAdapter, SQLitePersistenceAdapter],
-)
+@pytest.mark.parametrize("adapter_factory", [MemoryPersistenceAdapter])
 def test_cooldown_persists(adapter_factory):
     adapter = adapter_factory()
     builder = _builder([_record("alpha", weight=0.5), _record("beta", weight=0.5)])

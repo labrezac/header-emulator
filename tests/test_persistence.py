@@ -3,11 +3,10 @@ import time
 import pytest
 
 from header_emulator.persistence.memory import MemoryPersistenceAdapter
-from header_emulator.persistence.sqlite import SQLitePersistenceAdapter
 from header_emulator.types import ProxyConfig, ProxyScheme
 
 
-@pytest.mark.parametrize("adapter_factory", [MemoryPersistenceAdapter, SQLitePersistenceAdapter])
+@pytest.mark.parametrize("adapter_factory", [MemoryPersistenceAdapter])
 def test_sticky_store_round_trip(adapter_factory):
     adapter = adapter_factory()
     store = adapter.sticky_sessions()
@@ -17,7 +16,7 @@ def test_sticky_store_round_trip(adapter_factory):
     assert store.get("token") is None
 
 
-@pytest.mark.parametrize("adapter_factory", [MemoryPersistenceAdapter, SQLitePersistenceAdapter])
+@pytest.mark.parametrize("adapter_factory", [MemoryPersistenceAdapter])
 def test_sticky_store_expiry(adapter_factory):
     adapter = adapter_factory()
     store = adapter.sticky_sessions()
@@ -26,7 +25,7 @@ def test_sticky_store_expiry(adapter_factory):
     assert store.get("token") is None
 
 
-@pytest.mark.parametrize("adapter_factory", [MemoryPersistenceAdapter, SQLitePersistenceAdapter])
+@pytest.mark.parametrize("adapter_factory", [MemoryPersistenceAdapter])
 def test_proxy_sticky_store(adapter_factory):
     adapter = adapter_factory()
     store = adapter.sticky_proxies()
@@ -37,7 +36,7 @@ def test_proxy_sticky_store(adapter_factory):
     assert result.netloc == "localhost:8080"
 
 
-@pytest.mark.parametrize("adapter_factory", [MemoryPersistenceAdapter, SQLitePersistenceAdapter])
+@pytest.mark.parametrize("adapter_factory", [MemoryPersistenceAdapter])
 def test_cooldown_store(adapter_factory):
     adapter = adapter_factory()
     store = adapter.cooldowns()

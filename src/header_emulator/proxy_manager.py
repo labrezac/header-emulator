@@ -101,6 +101,7 @@ class ProxyManager:
             response = client.get(
                 self.config.healthcheck_url,
                 timeout=self.config.healthcheck_timeout_seconds,
+                proxies=_proxy_dict(proxy),
             )
             return response.status_code < 400
         except httpx.HTTPError:
@@ -137,9 +138,12 @@ class ProxyManager:
                 self._evict(url)
 
     def _default_client_factory(self, proxy: ProxyConfig) -> httpx.Client:
-        return httpx.Client(
-            proxies=proxy.url,
-            timeout=self.config.healthcheck_timeout_seconds,
-        )
+        return httpx.Client(timeout=self.config.healthcheck_timeout_seconds)
+
+
+def _proxy_dict(proxy: ProxyConfig) -> dict[str, str]:
+    proxy_url = proxy.url
+    return {"http": proxy_url, "https": proxy_url}
+
 
 __all__ = ["ProxyManager"]
