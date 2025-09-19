@@ -3,6 +3,9 @@ HTML scraping header emulator with proxy rotation.
 
 ## Quick Start
 
+1. Create a profile file (e.g., `data/profiles.json`) with user-agent fingerprints.
+2. Instantiate the emulator and make requests:
+
 ```python
 from header_emulator import HeaderEmulator
 
@@ -32,7 +35,15 @@ emulator = HeaderEmulator(
     locales=LocaleProvider([locale]),
     proxies=proxy_provider,
 )
+
+headers, proxy = emulator.next_headers(with_proxy=True)
 ```
+
+## Proxy Utilities
+
+- `ProxyProvider.from_env()` / `.from_file()` / `.from_csv()` load proxies from different sources.
+- `load_proxies_from_lines()`, `deduplicate_proxies()`, and `shuffled_proxies()` help clean and randomize a proxy pool.
+- `healthcheck_proxies()` runs quick checks before scraping.
 
 ## Notes
 

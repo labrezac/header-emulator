@@ -1,5 +1,3 @@
-import math
-
 import httpx
 import pytest
 
